@@ -57,7 +57,7 @@ $(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPU
 $(OUTPUT)/pamspy.bpf.o: pamspy.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) vmlinux.h
 	$(call msg,BPF,$@)
 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(Q)$(LLVM_STRIP) -g $@ # strip useless DWARF info
+	$(Q)command -v $(LLVM_STRIP) >/dev/null 2>&1 && $(LLVM_STRIP) -g $@ || true # strip useless DWARF info (optional)
 
 # Generate BPF skeletons
 $(OUTPUT)/pamspy.skel.h: $(OUTPUT)/pamspy.bpf.o
@@ -77,7 +77,7 @@ $(OUTPUT)/pamspy_symbol.o: pamspy_symbol.c $(wildcard %.h) | $(OUTPUT)
 # Build application binary
 pamspy: $(OUTPUT)/pamspy.o $(OUTPUT)/pamspy_symbol.o $(LIBBPF_OBJ) $(BIN) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CC) $(CFLAGS)  -o bin/$@ $(OUTPUT)/pamspy_symbol.o $(OUTPUT)/pamspy.o  $(LIBBPF_OBJ) -l:libelf.a -l:libz.a -static
+	$(Q)$(CC) $(CFLAGS)  -o bin/$@ $(OUTPUT)/pamspy_symbol.o $(OUTPUT)/pamspy.o  $(LIBBPF_OBJ) -l:libelf.a -l:libz.a -l:libzstd.a -static
 
 # Build helpers
 $(HELPERS):
