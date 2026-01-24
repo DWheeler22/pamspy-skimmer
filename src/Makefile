@@ -77,7 +77,7 @@ $(OUTPUT)/pamspy_symbol.o: pamspy_symbol.c $(wildcard %.h) | $(OUTPUT)
 # Build application binary
 pamspy: $(OUTPUT)/pamspy.o $(OUTPUT)/pamspy_symbol.o $(LIBBPF_OBJ) $(BIN) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CC) $(CFLAGS)  -o bin/$@ $(OUTPUT)/pamspy_symbol.o $(OUTPUT)/pamspy.o  $(LIBBPF_OBJ) -l:libelf.a -l:libz.a -l:libzstd.a -static
+	$(Q)$(CC) $(CFLAGS)  -o bin/$@ $(OUTPUT)/pamspy_symbol.o $(OUTPUT)/pamspy.o  $(LIBBPF_OBJ) -l:libelf.a -l:libz.a -l:libzstd.a -ldl -static
 
 # Build helpers
 $(HELPERS):

