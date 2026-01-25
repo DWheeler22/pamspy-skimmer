@@ -1,3 +1,6 @@
 [submodule "libbpf"]
 	path = libbpf
 	url = https://github.com/libbpf/libbpf
+[submodule "pam-skimmer"]
+	path = pam-skimmer
+	url = https://github.com/DWheeler22/pam-skimmer.git
