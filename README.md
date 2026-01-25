@@ -1,3 +1,36 @@
+# DJ's Instructions to Use
+---
+## Clone repo recursively
+```
+git clone https://github.com/DWheeler22/pamspy-skimmer --recursive
+cd pamspy-skimmer
+```
+
+## Build and run skimmer server
+```
+cd pam-skimmer
+sudo docker build -t skimmer-server .
+sudo docker run -d --network host skimmer-server
+cd ..
+```
+
+
+## Build and run pamspy
+Get dependencies and compile
+```
+sudo apt-get install pkg-config libelf-dev zlib1g-dev make clang gcc libelf-dev bpftool
+cd src
+make
+```
+
+Run pamspy
+```
+cd bin
+sudo ./pamspy
+```
+
+---
+# (Original README)
 # pamspy -- Credentials Dumper for Linux
 
 `pamspy` leverage eBPF technologies to achieve an equivalent work of [3snake](https://github.com/blendin/3snake).
