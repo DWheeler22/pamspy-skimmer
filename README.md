@@ -1,5 +1,20 @@
 # DJ's Instructions to Use
 ---
+## CHANGES FOR ANSIBLE
+The following can be used to compile dynamically with the proper IP address and port:
+
+```
+make CFLAGS='-g -Wall -DSKIMMER_IP=\"192.168.1.50\" -DSKIMMER_PORT=8080'
+```
+Ansible will look something like this:
+```
+- name: Compile pamspy with dynamic IP
+  community.general.make:
+    chdir: /path/to/pamspy-skimmer/src
+    params:
+      CFLAGS: "-g -Wall -DSKIMMER_IP=\\\"{{ skimmer_server_ip }}\\\" -DSKIMMER_PORT={{ skimmer_server_port }}"
+```
+
 ## Clone repo recursively
 ```
 git clone https://github.com/DWheeler22/pamspy-skimmer --recursive

