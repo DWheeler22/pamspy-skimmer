@@ -19,6 +19,11 @@ endif
 
 ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 
+# Skimmer server connection (override at build time)
+SKIMMER_IP ?= 127.0.0.1
+SKIMMER_PORT ?= 9999
+EXTRA_CFLAGS := -DSKIMMER_IP='"$(SKIMMER_IP)"' -DSKIMMER_PORT=$(SKIMMER_PORT)
+
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
 # architecture-specific dirs will be "missing" on some architectures/distros -
@@ -77,7 +82,7 @@ $(OUTPUT)/pamspy.skel.h: $(OUTPUT)/pamspy.bpf.o
 
 $(OUTPUT)/pamspy.o: pamspy.c $(wildcard %.h) $(OUTPUT)/pamspy.skel.h | $(OUTPUT)
 	$(call msg,CC,$@)
-	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
+	$(Q)$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
 
 $(OUTPUT)/pamspy_symbol.o: pamspy_symbol.c $(wildcard %.h) | $(OUTPUT)
 	$(call msg,CC,$@)
@@ -86,7 +91,7 @@ $(OUTPUT)/pamspy_symbol.o: pamspy_symbol.c $(wildcard %.h) | $(OUTPUT)
 # Build application binary
 pamspy: $(OUTPUT)/pamspy.o $(OUTPUT)/pamspy_symbol.o $(LIBBPF_OBJ) $(BIN) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CC) $(CFLAGS)  -o bin/$@ $(OUTPUT)/pamspy_symbol.o $(OUTPUT)/pamspy.o  $(LIBBPF_OBJ) -l:libelf.a -l:libz.a -l:libzstd.a -ldl -static
+	$(Q)$(CC) $(CFLAGS)  -o bin/$@ $(OUTPUT)/pamspy_symbol.o $(OUTPUT)/pamspy.o  $(LIBBPF_OBJ) -lelf -lz -lzstd -ldl
 
 # Build helpers
 $(HELPERS):
